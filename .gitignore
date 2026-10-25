@@ -1,0 +1,11 @@
+.gizli/
+.venv/
+__pycache__/
+*.pyc
+odalar.json
+odalar.json.tmp
+harita.png
+harita.bin
+qr.png
+*.log
+.DS_Store

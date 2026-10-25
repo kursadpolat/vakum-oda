@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Süpürge Oda Oda</title>
+<style>
+:root{--bg:#f3f4f6;--kart:#fff;--yazi:#111827;--soluk:#6b7280;--cizgi:#d1d5db;--vurgu:#2563eb;--vurgu-y:#fff;--tehlike:#dc2626;--iyi:#16a34a;--harita:#e5e7eb}
+@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--kart:#1a1d24;--yazi:#e5e7eb;--soluk:#9ca3af;--cizgi:#343a46;--vurgu:#60a5fa;--vurgu-y:#0b1220;--tehlike:#f87171;--iyi:#4ade80;--harita:#262b35}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--yazi);font:16px/1.4 -apple-system,system-ui,sans-serif;padding:0 16px 40px}
+main{max-width:760px;margin:0 auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:14px 0 8px;flex-wrap:wrap}
+h1{font-size:20px;margin:0}
+.durum{font-size:14px;color:var(--soluk)}
+.durum b{color:var(--yazi)}
+.kart{background:var(--kart);border:1px solid var(--cizgi);border-radius:12px;padding:12px;margin:10px 0}
+button,select,input{font:inherit;color:inherit}
+button{border:1px solid var(--cizgi);background:var(--kart);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer}
+button.ana{background:var(--vurgu);color:var(--vurgu-y);border-color:var(--vurgu);font-weight:600}
+button.tehlike{color:var(--tehlike)}
+button:disabled{opacity:.5}
+.satir{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.satir>.ger{flex:1}
+input[type=text]{width:100%;border:1px solid var(--cizgi);background:var(--bg);border-radius:10px;padding:10px;min-height:44px}
+select{border:1px solid var(--cizgi);background:var(--bg);border-radius:10px;padding:10px;min-height:44px}
+#kap{position:relative;background:var(--harita);border-radius:10px;overflow:hidden;line-height:0}
+canvas{width:100%;height:auto;display:block}
+canvas.ciz{touch-action:none;cursor:crosshair}
+.oda{display:flex;gap:6px;align-items:center;margin:8px 0}
+.oda .ad{flex:1;font-weight:600;min-height:44px;text-align:left}
+.kucuk{padding:8px 10px;min-height:44px;font-size:14px}
+#mesaj{position:fixed;left:16px;right:16px;bottom:16px;max-width:728px;margin:0 auto;padding:12px 14px;border-radius:10px;background:var(--yazi);color:var(--bg);display:none;z-index:9}
+.soluk{color:var(--soluk);font-size:14px}
+#kimlik{text-align:center;margin-top:14px}
+#kimlik a{color:var(--vurgu)}
+.rl{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>Süpürge</h1>
+  <div class="durum" id="durum">Bağlanıyor...</div>
+</header>
+
+<div class="kart">
+  <div class="satir">
+    <button id="durdur" class="tehlike">Durdur</button>
+    <button id="istasyon">İstasyona dön</button>
+    <span class="ger"></span>
+    <label class="soluk">Tekrar
+      <select id="tekrar"><option>1</option><option>2</option><option>3</option></select>
+    </label>
+  </div>
+</div>
+
+<div class="kart">
+  <div class="satir" style="justify-content:space-between"><b>Odalar</b>
+    <button id="yeni" class="kucuk">+ Yeni oda</button></div>
+  <div id="liste"></div>
+  <div id="bos" class="soluk" style="display:none">Henüz oda yok. "Yeni oda" ile haritada alan çiz.</div>
+</div>
+
+<div class="kart" id="editor" style="display:none">
+  <div><b id="editBaslik">Yeni oda</b>
+  <div class="soluk">Haritada parmağınla/fareyle sürükleyerek dikdörtgen çiz (en fazla 5).</div></div>
+  <div id="rlist"></div>
+  <div class="satir" style="margin-top:8px">
+    <div class="ger"><input type="text" id="ad" maxlength="40" placeholder="Oda adı (ör. Yatak odası)"></div>
+  </div>
+  <div class="satir" style="margin-top:8px">
+    <button id="kaydet" class="ana">Kaydet</button>
+    <button id="geri">Son dikdörtgeni sil</button>
+    <button id="iptal">Vazgeç</button>
+  </div>
+</div>
+
+<div class="kart">
+  <div id="kap"><canvas id="cv" width="10" height="10"></canvas></div>
+  <div class="satir" style="margin-top:8px;justify-content:space-between">
+    <span class="soluk" id="haritaBilgi"></span>
+    <button id="yenile" class="kucuk">Haritayı yenile</button>
+  </div>
+</div>
+<div id="kimlik" class="soluk"></div>
+</main>
+<div id="mesaj"></div>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let meta = null, img = null, odalar = [], durumu = null;
+let editId = null, editMod = false, rects = [], cizim = null, secili = null;
+
+function mesaj(t, hata) {
+  const m = $("mesaj"); m.textContent = t; m.style.display = "block";
+  m.style.background = hata ? "var(--tehlike)" : "var(--yazi)";
+  clearTimeout(mesaj.z); mesaj.z = setTimeout(() => m.style.display = "none", 4500);
+}
+async function api(yol, metot = "GET", govde) {
+  const o = {method: metot, headers: {"X-Vakum": "1"}};
+  if (govde !== undefined) { o.body = JSON.stringify(govde); o.headers["Content-Type"] = "application/json"; }
+  const r = await fetch(yol, o);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.hata || ("HTTP " + r.status));
+  return j;
+}
+
+// koordinat donusumu (koord.py ile ayni formul)
+const mm2px = (x, y) => [(x / 50 - meta.left) * meta.olcek, (meta.h - (y / 50 - meta.top)) * meta.olcek];
+const px2mm = (px, py) => [Math.round((px / meta.olcek + meta.left) * 50), Math.round((meta.h - py / meta.olcek + meta.top) * 50)];
+
+function ciz() {
+  const cv = $("cv"); if (!meta || !img) return;
+  const c = cv.getContext("2d");
+  c.clearRect(0, 0, cv.width, cv.height);
+  c.drawImage(img, 0, 0);
+  const kutu = (r, renk, dolgu, yazi) => {
+    const [ax, ay] = mm2px(r[0], r[1]), [bx, by] = mm2px(r[2], r[3]);
+    const x = Math.min(ax, bx), y = Math.min(ay, by), w = Math.abs(bx - ax), h = Math.abs(by - ay);
+    c.fillStyle = dolgu; c.fillRect(x, y, w, h);
+    c.strokeStyle = renk; c.lineWidth = 3; c.strokeRect(x, y, w, h);
+    if (yazi) { c.fillStyle = renk; c.font = "bold 18px sans-serif"; c.fillText(yazi, x + 6, y + 22); }
+  };
+  if (!editMod) odalar.forEach(o => {
+    const s = o.id === secili;
+    o.dikdortgenler.forEach((r, i) => kutu(r, s ? "#f59e0b" : "#2563eb", s ? "rgba(245,158,11,.30)" : "rgba(37,99,235,.18)", i === 0 ? o.ad : ""));
+  });
+  rects.forEach((r, i) => kutu(r, "#16a34a", "rgba(22,163,74,.28)", String(i + 1)));
+  if (cizim) kutu(cizim.mm, "#16a34a", "rgba(22,163,74,.15)", "");
+  const nokta = (p, renk, harf) => { if (!p) return; const [x, y] = mm2px(p[0], p[1]);
+    c.beginPath(); c.arc(x, y, 11, 0, 7); c.fillStyle = renk; c.fill();
+    c.fillStyle = "#fff"; c.font = "bold 13px sans-serif"; c.textAlign = "center"; c.fillText(harf, x, y + 5); c.textAlign = "left"; };
+  nokta(meta.dock, "#7c3aed", "İ");
+  nokta(meta.robot, "#dc2626", "R");
+}
+
+async function haritaYukle() {
+  try {
+    meta = await api("/api/harita");
+  } catch (e) { meta = null; $("haritaBilgi").textContent = e.message; return; }
+  img = new Image();
+  img.onload = () => { const cv = $("cv"); cv.width = img.width; cv.height = img.height; ciz();
+    $("haritaBilgi").textContent = "İ: istasyon, R: robot"; };
+  img.src = "/harita.png?t=" + Date.now();
+}
+
+function pozisyon(e) {
+  const cv = $("cv"), b = cv.getBoundingClientRect();
+  return [(e.clientX - b.left) * cv.width / b.width, (e.clientY - b.top) * cv.height / b.height];
+}
+const cv = $("cv");
+cv.addEventListener("pointerdown", e => {
+  if (!editMod || !meta) return;
+  if (rects.length >= 5) { mesaj("En fazla 5 dikdörtgen", true); return; }
+  cv.setPointerCapture(e.pointerId);
+  const p = pozisyon(e); cizim = {a: p, mm: [0, 0, 0, 0]}; e.preventDefault();
+});
+cv.addEventListener("pointermove", e => {
+  if (!cizim) return;
+  const p = pozisyon(e), a = px2mm(...cizim.a), b = px2mm(...p);
+  cizim.b = p; cizim.mm = [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
+  ciz();
+});
+function bitir() {
+  if (!cizim) return;
+  const r = cizim.mm; cizim = null;
+  if (r[2] - r[0] >= 300 && r[3] - r[1] >= 300) rects.push(r); else mesaj("Dikdörtgen çok küçük", true);
+  editGuncelle(); ciz();
+}
+cv.addEventListener("pointerup", bitir);
+cv.addEventListener("pointercancel", () => { cizim = null; ciz(); });
+
+function editGuncelle() {
+  $("rlist").innerHTML = rects.map((r, i) =>
+    `<div class="rl"><span>${i + 1}. alan (${((r[2]-r[0])/1000).toFixed(1)} x ${((r[3]-r[1])/1000).toFixed(1)} m)</span><button class="kucuk" data-sil="${i}">Sil</button></div>`).join("");
+  $("rlist").querySelectorAll("[data-sil]").forEach(b => b.onclick = () => { rects.splice(+b.dataset.sil, 1); editGuncelle(); ciz(); });
+}
+function editAc(o) {
+  editMod = true; editId = o ? o.id : null; rects = o ? o.dikdortgenler.map(r => r.slice()) : [];
+  $("ad").value = o ? o.ad : ""; $("editBaslik").textContent = o ? "Odayı düzenle" : "Yeni oda";
+  $("editor").style.display = "block"; cv.classList.add("ciz"); editGuncelle(); ciz();
+  $("editor").scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+function editKapat() {
+  editMod = false; editId = null; rects = []; cizim = null;
+  $("editor").style.display = "none"; cv.classList.remove("ciz"); ciz();
+}
+$("yeni").onclick = () => { if (!meta) return mesaj("Önce haritayı yenile", true); editAc(null); };
+$("iptal").onclick = editKapat;
+$("geri").onclick = () => { rects.pop(); editGuncelle(); ciz(); };
+$("kaydet").onclick = async () => {
+  const ad = $("ad").value.trim();
+  if (!ad) return mesaj("Oda adı yaz", true);
+  if (!rects.length) return mesaj("En az bir dikdörtgen çiz", true);
+  try {
+    await api("/api/oda", "POST", {id: editId, ad, dikdortgenler: rects});
+    editKapat(); await odalariYukle(); mesaj("Kaydedildi");
+  } catch (e) { mesaj(e.message, true); }
+};
+
+function listele() {
+  $("bos").style.display = odalar.length ? "none" : "block";
+  $("liste").innerHTML = odalar.map(o => `<div class="oda" data-id="${o.id}">
+    <button class="ana ad" data-t="${o.id}"></button>
+    <button class="kucuk" data-d="${o.id}">Düzenle</button>
+    <button class="kucuk tehlike" data-s="${o.id}">Sil</button></div>`).join("");
+  odalar.forEach(o => { $("liste").querySelector(`[data-t="${o.id}"]`).textContent = "Temizle: " + o.ad; });
+  $("liste").querySelectorAll("[data-t]").forEach(b => {
+    b.onclick = () => temizle(odalar.find(o => o.id === b.dataset.t));
+    b.onpointerenter = () => { secili = b.dataset.t; ciz(); };
+  });
+  $("liste").querySelectorAll("[data-d]").forEach(b => b.onclick = () => editAc(odalar.find(o => o.id === b.dataset.d)));
+  $("liste").querySelectorAll("[data-s]").forEach(b => b.onclick = () => sil(odalar.find(o => o.id === b.dataset.s)));
+}
+async function odalariYukle() { odalar = (await api("/api/odalar")).odalar; listele(); ciz(); }
+
+async function temizle(o) {
+  const t = +$("tekrar").value;
+  if (!confirm(`"${o.ad}" temizlensin mi? (${t} tekrar)`)) return;
+  secili = o.id; ciz();
+  try { const r = await api("/api/temizle", "POST", {oda_id: o.id, tekrar: t});
+    mesaj(r.gonderildi ? "Temizlik başlatıldı" : "KURU MOD: komut gönderilmedi"); setTimeout(durumYukle, 1500);
+  } catch (e) { mesaj(e.message, true); }
+}
+async function sil(o) {
+  if (!confirm(`"${o.ad}" odası silinsin mi?\n(Silmeden önce otomatik yedek alınır.)`)) return;
+  try { await api("/api/oda/" + o.id, "DELETE"); await odalariYukle(); mesaj("Silindi"); }
+  catch (e) { mesaj(e.message, true); }
+}
+$("durdur").onclick = async () => {
+  try { await api("/api/durdur", "POST", {}); mesaj("Durdur gönderildi"); setTimeout(durumYukle, 1000); } catch (e) { mesaj(e.message, true); }
+};
+$("istasyon").onclick = async () => {
+  if (!confirm("Robot istasyona dönsün mü?")) return;
+  try { await api("/api/istasyon", "POST", {}); mesaj("İstasyona dönüyor"); setTimeout(durumYukle, 1000); } catch (e) { mesaj(e.message, true); }
+};
+$("yenile").onclick = async () => {
+  $("yenile").disabled = true; $("haritaBilgi").textContent = "Harita indiriliyor...";
+  try { await api("/api/harita-yenile", "POST", {}); await haritaYukle(); mesaj("Harita yenilendi"); }
+  catch (e) { mesaj(e.message, true); $("haritaBilgi").textContent = ""; }
+  $("yenile").disabled = false;
+};
+async function durumYukle() {
+  try { const d = await api("/api/durum"); durumu = d;
+    $("durum").innerHTML = `<b>${d.durum}</b> · Pil %${d.pil}` + (d.hata_kodu ? ` · Hata ${d.hata_kodu}` : "") + (d.kuru ? " · KURU MOD" : "");
+  } catch (e) { $("durum").textContent = "Robota ulaşılamıyor"; }
+}
+async function kimlikYukle() {
+  try { const k = await api("/api/kimlik");
+    const el = $("kimlik"); el.textContent = "";
+    const s = document.createElement("div");
+    s.textContent = "Şu an: " + k.makine + (k.mdns ? (k.lider ? " (" + k.mdns + " burada)" : " (doğrudan adres)") : "");
+    el.appendChild(s);
+    k.esler.forEach(e => { const d = document.createElement("div"), a = document.createElement("a");
+      a.href = e.url + "/"; a.textContent = e.ad + ": " + e.url.replace(/^https?:\/\//, "");
+      d.appendChild(a); d.appendChild(document.createTextNode(e.acik === false ? " (kapalı)" : e.acik ? " (açık)" : ""));
+      el.appendChild(d); });
+  } catch (e) {}
+}
+try { const t = localStorage.getItem("tekrar"); if (t) $("tekrar").value = t; } catch (e) {}
+$("tekrar").onchange = () => { try { localStorage.setItem("tekrar", $("tekrar").value); } catch (e) {} };
+window.addEventListener("resize", ciz);
+(async () => { await haritaYukle(); await odalariYukle().catch(e => mesaj(e.message, true)); durumYukle(); setInterval(durumYukle, 6000); kimlikYukle(); setInterval(kimlikYukle, 30000); })();
+</script>
+</body>
+</html>

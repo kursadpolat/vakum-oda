@@ -1,0 +1,16 @@
+{
+  "makine": "Mac",
+  "oncelik": 1,
+  "port": 8765,
+  "robot_ip": "192.168.0.50",
+  "mdns_ad": "vakum",
+  "mdns": true,
+  "yayin_ip": "",
+  "esler": [
+    {"ad": "Monster", "url": "http://192.168.0.60:8765", "oncelik": 2}
+  ],
+  "senkron_anahtar": "BURAYA-iki-makinede-ayni-rastgele-anahtar",
+  "senkron_aralik_sn": 30,
+  "kontrol_aralik_sn": 5,
+  "devralma_hata_sayisi": 3
+}
