@@ -71,3 +71,7 @@ o zaman haritayı yenile ve odaları yeniden çiz/düzelt (eski hâlini `.gizli/
 `kurulum/` Mac LaunchAgent ve Windows görev betikleri, `bulut_giris.py` QR girişi, `bulut.py` bulut API, `harita.py` harita indir/PNG,
 `koord.py` piksel↔mm, `robot.py` robot komutları, `odalar.py` odalar.json + yedek + birleştirme, `sunucu.py` + `sayfa.html` arayüz,
 `test_*.py` robota ve gerçek dosyalara dokunmayan testler.
+
+## Güvenlik
+
+Bu sunucu yalnızca ev içi ağ (LAN) için tasarlandı; kimlik doğrulaması yoktur. Modemden port yönlendirme yapıp **internete açmayın**. Token ve oturum bilgileri `.gizli/` altında tutulur ve repoya girmez.
