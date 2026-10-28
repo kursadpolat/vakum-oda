@@ -1,5 +1,6 @@
-"""Robot (rockrobo.vacuum.v1) ile konusma. SADECE standart komutlar:
-get_status, get_map_v1, app_zoned_clean, app_stop, app_pause, app_charge."""
+"""Robot (rockrobo.vacuum.v1) ile konusma. SADECE standart miio komutlari (IZINLI kumesi):
+temizlik: app_zoned_clean, app_stop, app_pause, app_charge; okuma: get_status, get_map_v1;
+ses paketi: get_current_sound, get_sound_volume, get_sound_progress, dnld_install_sound."""
 import os
 import threading
 import time
@@ -19,10 +20,40 @@ DURUMLAR = {1: "Başlatılıyor", 2: "Şarj bağlantısı bekliyor", 3: "Bekleme
             9: "Şarj sorunu", 10: "Duraklatıldı", 11: "Nokta temizlik", 12: "Hata",
             13: "Kapanıyor", 14: "Güncelleniyor", 15: "İstasyona gidiyor", 16: "Hedefe gidiyor",
             17: "Bölge temizliyor", 18: "Oda temizliyor", 100: "Şarj tamam"}
+HATALAR = {1: "Lazer sensörü takıldı ya da önü kapalı; üstteki turuncu kafayı kontrol et",
+           2: "Ön tampon sıkıştı; tamponu temizleyip hafifçe bastır",
+           3: "Tekerlekler boşta kaldı; robotu düz bir yere taşı",
+           4: "Uçurum sensörleri kirli ya da robot bir kenarda; sensörleri sil, robotu taşı",
+           5: "Ana fırçaya bir şey takıldı; fırçayı çıkarıp temizle",
+           6: "Yan fırçaya bir şey takıldı; yan fırçayı temizle",
+           7: "Tekerlek sıkıştı; tekerleklerin önünü aç",
+           8: "Robot sıkıştı; etrafındaki engelleri kaldır",
+           9: "Toz haznesi takılı değil",
+           10: "Filtre tıkalı ya da ıslak; filtreyi temizle",
+           11: "Manyetik sınır şeridine takıldı; robotu şeritten uzaklaştır",
+           12: "Pil çok zayıf; robotu şarja koy",
+           13: "Şarj olamıyor; şarj kontaklarını sil",
+           14: "Pil arızası",
+           15: "Duvar sensörü kirli; sensörü sil",
+           16: "Zemin düz değil; robotu düz bir yere koy",
+           17: "Yan fırça modülü arızası; robotu yeniden başlat",
+           18: "Fan arızası; robotu yeniden başlat",
+           19: "İstasyonda elektrik yok; fişi kontrol et",
+           21: "Lazer kapağına baskı var; robotu sıkıştığı yerden çıkar",
+           22: "Robotun şarj sensörü kirli; sil",
+           23: "İstasyonun sinyal alanı kirli ya da kapalı; önünü aç",
+           24: "Yasak bölgeye ya da sınır şeridine girdi; robotu uzaklaştır"}
 TEMIZLIKTE = {4, 5, 7, 11, 16, 17, 18}   # bu durumlarda yeni temizlik komutu gonderilmez
+
+IZINLI = {"get_status", "get_map_v1", "app_zoned_clean", "app_stop", "app_pause", "app_charge",
+          "get_current_sound", "get_sound_volume", "get_sound_progress", "dnld_install_sound"}
 
 _kilit = threading.Lock()
 _cihaz = None
+
+
+class Mesgul(RuntimeError):
+    """Robot baglantisi baska bir komutla mesgul (bekle=False iken)."""
 
 
 def _token() -> str:
@@ -39,20 +70,49 @@ def _dev():
     return _cihaz
 
 
-def gonder(komut, parametre=None):
-    izinli = {"get_status", "get_map_v1", "app_zoned_clean", "app_stop", "app_pause", "app_charge"}
-    if komut not in izinli:
+def gonder(komut, parametre=None, deneme=None, bekle=True):
+    """deneme: miio yeniden deneme sayisi (None = kutuphane varsayilani, 0 = tek deneme ~5 sn).
+    bekle=False: baglanti mesgulse beklemeden Mesgul firlatir (arka plan okumalari temizlik komutunu geciktirmesin)."""
+    if komut not in IZINLI:
         raise ValueError("izin verilmeyen komut: " + komut)
-    with _kilit:
-        return _dev().send(komut, parametre or [])
+    if not _kilit.acquire(blocking=bekle):
+        raise Mesgul("robot mesgul")
+    try:
+        if deneme is None:
+            return _dev().send(komut, parametre or [])
+        try:
+            return _dev().send(komut, parametre or [], retry_count=deneme)
+        except Exception:
+            _id_atla()
+            raise
+    finally:
+        _kilit.release()
 
 
-def durum() -> dict:
-    d = gonder("get_status")[0]
+def _id_atla():
+    """Robot, gordugu son mesaj id'sinden kucuk id'li paketlere yanit vermez (ayni robota baska
+    istemci/makine de konusunca bizim sayac geride kalir). Kutuphane kendi yeniden denemesinde id'yi
+    100 artirir; deneme=0 ile bu adim atlandigi icin burada yapilir, bir sonraki cagri yakalar."""
+    try:
+        p = _cihaz._protocol
+        p._MiIOProtocol__id = (p.raw_id + 100) % 9900
+        p._discovered = False
+    except Exception:
+        pass
+
+
+def durum(deneme=None, bekle=True) -> dict:
+    d = gonder("get_status", deneme=deneme, bekle=bekle)[0]
     s = d.get("state")
     return {"durum_kodu": s, "durum": DURUMLAR.get(s, f"Durum {s}"), "pil": d.get("battery"),
-            "hata_kodu": d.get("error_code"), "temizlikte": s in TEMIZLIKTE,
+            "hata_kodu": d.get("error_code"), "hata": hata_metni(d.get("error_code")), "temizlikte": s in TEMIZLIKTE,
             "alan_m2": round(d.get("clean_area", 0) / 1_000_000, 1), "sure_sn": d.get("clean_time")}
+
+
+def hata_metni(kod):
+    if not kod:
+        return ""
+    return HATALAR.get(kod, f"Bilinmeyen hata (kod {kod})")
 
 
 def harita_adi(deneme=6, bekle=2.0):

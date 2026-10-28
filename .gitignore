@@ -9,3 +9,9 @@ harita.bin
 qr.png
 *.log
 .DS_Store
+.env
+*.token
+*.key
+ayar.json
+*.wav
+*.pkg

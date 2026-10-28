@@ -20,16 +20,20 @@ HARITA_DIZIN = GIZLI / "harita"
 OLCEK = 4  # PNG buyutme (1 harita pikseli = 50 mm = 4 PNG pikseli)
 
 
-def indir_ham(harita_adi: str) -> bytes:
+class BulutHatasi(RuntimeError):
+    """Bulut tarafi (oturum / indirme) hatasi; robot tarafindan ayirmak icin."""
+
+
+def indir_ham(harita_adi: str, baglanti: "BulutBaglanti | None" = None) -> bytes:
     """Bulut oturumuyla harita dosyasini indirir (gzip'li ham bayt)."""
-    b = BulutBaglanti.yukle()
+    b = baglanti or BulutBaglanti.yukle()
     r = b.api("/home/getmapfileurl", {"obj_name": harita_adi})
     url = (r.get("result") or {}).get("url")
     if not url:
-        raise RuntimeError("Harita URL'si alinamadi (bulut yaniti bos; robot bu hesapta mi?)")
+        raise BulutHatasi("Harita URL'si alinamadi (bulut yaniti bos; oturum dusmus olabilir)")
     d = requests.get(url, timeout=60)
     if d.status_code != 200:
-        raise RuntimeError(f"Harita indirilemedi: HTTP {d.status_code}")
+        raise BulutHatasi(f"Harita indirilemedi: HTTP {d.status_code}")
     return d.content
 
 
@@ -50,8 +54,20 @@ def isle(veri: bytes):
     meta = {"left": dim.left, "top": dim.top, "h": dim.height, "w": dim.width, "olcek": OLCEK,
             "png_w": w * OLCEK, "png_h": h * OLCEK, "mm_piksel": 50,
             "dock": [md.charger.x, md.charger.y] if md.charger else None,
-            "robot": [md.vacuum_position.x, md.vacuum_position.y] if md.vacuum_position else None}
+            "robot": [md.vacuum_position.x, md.vacuum_position.y] if md.vacuum_position else None,
+            "aci": getattr(md.vacuum_position, "a", None) if md.vacuum_position else None,
+            "yol": yol_noktalari(md)}
     return buf.getvalue(), meta
+
+
+def yol_noktalari(md, sinir=4000) -> list:
+    """Temizlikte gecilen yol: [[ [x,y], ... ], ...] (mm, parca parca). Cok uzunsa seyreltilir."""
+    parcalar = [[[p.x, p.y] for p in parca] for parca in ((md.path.path if md.path else None) or []) if parca]
+    toplam = sum(len(p) for p in parcalar)
+    if toplam > sinir:
+        adim = -(-toplam // sinir)
+        parcalar = [p[::adim] + ([p[-1]] if (len(p) - 1) % adim else []) for p in parcalar]
+    return parcalar
 
 
 def kaydet(png: bytes, meta: dict, ham: bytes | None = None) -> None:

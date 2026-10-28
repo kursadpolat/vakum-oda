@@ -92,6 +92,7 @@ canvas.ciz{touch-action:none;cursor:crosshair}
 const $ = id => document.getElementById(id);
 let meta = null, img = null, odalar = [], durumu = null;
 let editId = null, editMod = false, rects = [], cizim = null, secili = null;
+let canliZaman = 0, canliYukleniyor = false;
 
 function mesaj(t, hata) {
   const m = $("mesaj"); m.textContent = t; m.style.display = "block";
@@ -116,6 +117,14 @@ function ciz() {
   const c = cv.getContext("2d");
   c.clearRect(0, 0, cv.width, cv.height);
   c.drawImage(img, 0, 0);
+  // temizlikte gecilen yol (Xiaomi uygulamasindaki gibi ince cizgi)
+  (meta.yol || []).forEach(parca => {
+    if (parca.length < 2) return;
+    c.beginPath();
+    parca.forEach((p, i) => { const [x, y] = mm2px(p[0], p[1]); i ? c.lineTo(x, y) : c.moveTo(x, y); });
+    c.strokeStyle = "rgba(255,255,255,.9)"; c.lineWidth = 3; c.lineJoin = "round"; c.stroke();
+    c.strokeStyle = "rgba(37,99,235,.85)"; c.lineWidth = 1.5; c.stroke();
+  });
   const kutu = (r, renk, dolgu, yazi) => {
     const [ax, ay] = mm2px(r[0], r[1]), [bx, by] = mm2px(r[2], r[3]);
     const x = Math.min(ax, bx), y = Math.min(ay, by), w = Math.abs(bx - ax), h = Math.abs(by - ay);
@@ -134,6 +143,12 @@ function ciz() {
     c.fillStyle = "#fff"; c.font = "bold 13px sans-serif"; c.textAlign = "center"; c.fillText(harf, x, y + 5); c.textAlign = "left"; };
   nokta(meta.dock, "#7c3aed", "İ");
   nokta(meta.robot, "#dc2626", "R");
+  if (meta.robot && typeof meta.aci === "number") {   // robotun yonu
+    const [x, y] = mm2px(meta.robot[0], meta.robot[1]), a = -meta.aci * Math.PI / 180;
+    c.beginPath(); c.moveTo(x + Math.cos(a) * 20, y + Math.sin(a) * 20);
+    c.lineTo(x + Math.cos(a + 2.6) * 13, y + Math.sin(a + 2.6) * 13); c.lineTo(x + Math.cos(a - 2.6) * 13, y + Math.sin(a - 2.6) * 13);
+    c.closePath(); c.fillStyle = "#dc2626"; c.fill();
+  }
 }
 
 async function haritaYukle() {
@@ -144,6 +159,29 @@ async function haritaYukle() {
   img.onload = () => { const cv = $("cv"); cv.width = img.width; cv.height = img.height; ciz();
     $("haritaBilgi").textContent = "İ: istasyon, R: robot"; };
   img.src = "/harita.png?t=" + Date.now();
+}
+
+// canli harita: sayfa gorunurken ~5 sn'de bir sunucudan son hali al (sunucu buluttan ceker)
+async function canliYukle() {
+  if (document.hidden || editMod || canliYukleniyor) return;
+  canliYukleniyor = true;
+  try {
+    const j = await api("/api/canli");
+    if (j.durum === "tamam" && j.meta && j.zaman !== canliZaman && !editMod) {
+      const yeni = new Image();
+      await new Promise((ok, red) => { yeni.onload = ok; yeni.onerror = red; yeni.src = "/canli.png?t=" + j.zaman; });
+      if (!editMod) {
+        canliZaman = j.zaman; meta = j.meta; img = yeni;
+        const cv = $("cv"); if (cv.width !== img.width || cv.height !== img.height) { cv.width = img.width; cv.height = img.height; }
+        ciz();
+      }
+    }
+    const yas = j.yas_sn == null ? null : Math.round(j.yas_sn);
+    $("haritaBilgi").textContent = j.durum === "hata" ? (canliZaman && yas != null ? `Canlı · ${yas} sn önce · ` : "") + j.mesaj
+      : canliZaman ? `Canlı${j.meta && j.meta.temizlikte ? " (temizlikte)" : ""} · ${yas} sn önce · İ: istasyon, R: robot`
+      : "Canlı harita bekleniyor... · İ: istasyon, R: robot";
+  } catch (e) { /* sunucuya ulasilamadi: bir sonraki turda tekrar */ }
+  canliYukleniyor = false;
 }
 
 function pozisyon(e) {
@@ -262,7 +300,8 @@ async function kimlikYukle() {
 try { const t = localStorage.getItem("tekrar"); if (t) $("tekrar").value = t; } catch (e) {}
 $("tekrar").onchange = () => { try { localStorage.setItem("tekrar", $("tekrar").value); } catch (e) {} };
 window.addEventListener("resize", ciz);
-(async () => { await haritaYukle(); await odalariYukle().catch(e => mesaj(e.message, true)); durumYukle(); setInterval(durumYukle, 6000); kimlikYukle(); setInterval(kimlikYukle, 30000); })();
+document.addEventListener("visibilitychange", () => { if (!document.hidden) canliYukle(); });
+(async () => { await haritaYukle(); canliYukle(); setInterval(canliYukle, 5000); await odalariYukle().catch(e => mesaj(e.message, true)); durumYukle(); setInterval(durumYukle, 6000); kimlikYukle(); setInterval(kimlikYukle, 30000); })();
 </script>
 </body>
 </html>

@@ -23,6 +23,13 @@ class Lider:
         self._info = None
         self._dur = threading.Event()
 
+    @property
+    def bildirim_yetkili(self) -> bool:
+        """Cift bildirim olmasin: asil lider (ustu olmayan) her zaman; yedek yalniz devraldiysa."""
+        if not self.ust:
+            return True
+        return self.lider and not any(self.ust_acik.values())
+
     # ---- zeroconf ----
     def _bilgi(self):
         from zeroconf import ServiceInfo

@@ -18,6 +18,8 @@ from pathlib import Path
 import odalar
 import robot
 from ayar import AYAR as AYARLAR
+from bildirim import Izleyici
+from canli import CanliHarita
 from lider import Lider
 from senkron import BASLIK as SENKRON_BASLIK, Senkron
 
@@ -27,6 +29,8 @@ SAYFA = KOK / "sayfa.html"
 AYAR = {"kuru": False}
 SENKRON = Senkron({})      # main() icinde ayarla yeniden kurulur
 LIDER = None
+CANLI = CanliHarita()      # main() icinde gunlukle yeniden kurulur
+IZLEYICI = None
 
 
 def gunluk(m):
@@ -75,7 +79,8 @@ class Isleyici(BaseHTTPRequestHandler):
                 acik = time.time() - SENKRON.son[e["url"]] < SENKRON.aralik * 2 + 10
             esler.append({"ad": e.get("ad", "?"), "url": e["url"], "acik": acik})
         return {"makine": AYARLAR["makine"], "lider": bool(LIDER and LIDER.lider),
-                "mdns": f'{AYARLAR["mdns_ad"]}.local' if AYARLAR["mdns"] else None, "esler": esler}
+                "mdns": f'{AYARLAR["mdns_ad"]}.local' if AYARLAR["mdns"] else None, "esler": esler,
+                "bildirim": bool(IZLEYICI) and bildirim_yetkili()}
 
     def _yazma_izni(self):
         # CSRF korumasi: ozel baslik gerektirir (baska siteler bunu gonderemez)
@@ -97,6 +102,13 @@ class Isleyici(BaseHTTPRequestHandler):
                 if not p.exists():
                     return self._hata(404, "Harita yok. 'Haritayı yenile'ye bas.")
                 return self._gonder(200, p.read_bytes())
+            if yol == "/api/canli":
+                CANLI.izle()
+                return self._json(200, CANLI.ozet())
+            if yol == "/canli.png":
+                if CANLI.png is None:
+                    return self._hata(404, "Canlı harita yok")
+                return self._gonder(200, CANLI.png, "image/png")
             if yol == "/api/odalar":
                 return self._json(200, odalar.oku())
             if yol == "/api/kimlik":
@@ -183,8 +195,15 @@ def lan_ip():
         return "127.0.0.1"
 
 
+def bildirim_yetkili():
+    if LIDER:
+        return LIDER.bildirim_yetkili
+    own = int(AYARLAR.get("oncelik", 1))
+    return not any(e["oncelik"] < own for e in AYARLAR["esler"])
+
+
 def main():
-    global SENKRON, LIDER
+    global SENKRON, LIDER, CANLI, IZLEYICI
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=int(AYARLAR["port"]))
     ap.add_argument("--host", default="0.0.0.0")
@@ -195,10 +214,12 @@ def main():
     srv = ThreadingHTTPServer((a.host, a.port), Isleyici)
     ip = lan_ip()
     print(f"Hazır{' (KURU MOD: komut gönderilmez)' if a.kuru else ''}: http://{ip}:{a.port}", flush=True)
+    CANLI = CanliHarita(gunluk).baslat()
     if not a.tek:
         SENKRON = Senkron(AYARLAR, gunluk).baslat()
         if AYARLAR["mdns"] and ip != "127.0.0.1":
             LIDER = Lider(AYARLAR, ip, a.port, gunluk).baslat()
+        IZLEYICI = Izleyici(bildirim_yetkili, AYARLAR["makine"], gunluk).baslat()
         gunluk(f"makine={AYARLAR['makine']} senkron={'acik' if SENKRON.acik else 'kapali'} "
                f"esler={len(AYARLAR['esler'])} mdns={'acik' if LIDER else 'kapali'}")
 
@@ -212,6 +233,9 @@ def main():
     finally:
         if LIDER:
             LIDER.durdur()
+        if IZLEYICI:
+            IZLEYICI.durdur()
+        CANLI.durdur()
         SENKRON.durdur()
         srv.server_close()
 
