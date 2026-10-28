@@ -1,7 +1,7 @@
 """Telegram bildirimi: "Temizlik bitti" ve "Robot sıkıştı / hata: ..." mesajlari.
 Robot durumu IZLEME_SN'de bir okunur (get_status, salt-okuma); durum ve hata kodu gecislerinden olay cikar.
 Cift bildirim olmasin diye mesaji YALNIZ yetkili makine gonderir (yetkili() -> lider.Lider.bildirim_yetkili):
-asil lider (Mac) her zaman, yedek (Monster) ancak asil lider kapaliyken devraldiginda.
+asil lider (pc-1) her zaman, yedek (pc-2) ancak asil lider kapaliyken devraldiginda.
 Iki makine de durumu izler (devralan makine gecmisi bilsin), ama yalniz yetkili olan gonderir.
 Ayar: .gizli/telegram.json {"bot_token": "...", "chat_id": "..."} (yoksa bildirim kapali, sadece gunluge yazar)."""
 import json

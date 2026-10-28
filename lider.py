@@ -1,5 +1,5 @@
 """<mdns_ad>.local (A kaydi + _http._tcp servisi) yayinini yalniz lider makine yapar.
-oncelik en kucuk olan asil liderdir (Mac). Yedek (Monster), kendinden oncelikli tum esler
+oncelik en kucuk olan asil liderdir (pc-1). Yedek (pc-2), kendinden oncelikli tum esler
 devralma_hata_sayisi ardisik kontrolde yanit vermezse yayini devralir; biri geri gelince birakir."""
 import socket
 import threading

@@ -56,7 +56,7 @@ assert len(gonderilen) == 1 and iz.son_mesaj.startswith("Temizlik bitti")   # ye
 asil = lider.Lider({"oncelik": 1, "esler": [{"url": "http://b", "oncelik": 2}]}, "127.0.0.1", 1)
 assert asil.bildirim_yetkili                        # Mac: hep
 yedek = lider.Lider({"oncelik": 2, "esler": [{"url": "http://a", "oncelik": 1}]}, "127.0.0.1", 1)
-assert not yedek.bildirim_yetkili                   # Monster: devralmadan once hayir
+assert not yedek.bildirim_yetkili                   # pc-2: devralmadan once hayir
 yedek.lider = True; yedek.ust_acik = {"http://a": True}
 assert not yedek.bildirim_yetkili                   # asil geri geldiyse hayir
 yedek.ust_acik = {"http://a": False}

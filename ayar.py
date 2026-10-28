@@ -8,14 +8,14 @@ KOK = Path(__file__).resolve().parent
 AYAR_DOSYASI = Path(os.environ.get("VAKUM_AYAR", KOK / ".gizli" / "ayar.json"))
 
 VARSAYILAN = {
-    "makine": "Bu makine",       # sayfada gorunen ad (Mac / Monster)
+    "makine": "Bu makine",       # sayfada gorunen ad (pc-1 / pc-2)
     "oncelik": 1,                # 1 = asil lider; daha buyuk = yedek (dusuk oncelikli esler kapaliyken devralir)
     "port": 8765,
     "robot_ip": "",              # robotun LAN IP'si
     "mdns_ad": "vakum",          # <mdns_ad>.local
     "mdns": True,                # vakum.local yayini acik mi
     "yayin_ip": "",              # bos = robota giden arayuzun IP'si otomatik
-    "esler": [],                 # [{"ad": "Monster", "url": "http://IP:8765", "oncelik": 2}]
+    "esler": [],                 # [{"ad": "pc-2", "url": "http://IP:8765", "oncelik": 2}]
     "senkron_anahtar": "",       # esler arasinda paylasilan rastgele anahtar (bos = senkron kapali)
     "senkron_aralik_sn": 30,
     "kontrol_aralik_sn": 5,      # yedek makinenin lideri yoklama araligi

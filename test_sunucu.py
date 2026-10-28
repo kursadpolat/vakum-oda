@@ -19,15 +19,15 @@ try: robot.gonder("app_start"); raise SystemExit("izinsiz komut")
 except ValueError: pass
 
 # --- odalar + yedek ---
-a = odalar.kaydet_oda({"ad": "Yatak odası", "dikdortgenler": [[24000, 25000, 26000, 27000]]})
+a = odalar.kaydet_oda({"ad": "Oda D", "dikdortgenler": [[24000, 25000, 26000, 27000]]})
 assert not (tmp / "yedek").exists()                       # ilk yazmada yedeklenecek dosya yok
-b = odalar.kaydet_oda({"id": a["id"], "ad": "Yatak", "dikdortgenler": [[24000, 25000, 26000, 27000]]})
+b = odalar.kaydet_oda({"id": a["id"], "ad": "Oda D2", "dikdortgenler": [[24000, 25000, 26000, 27000]]})
 assert len(list((tmp / "yedek").glob("*.json"))) == 1
-odalar.kaydet_oda({"ad": "Salon", "dikdortgenler": [[1000, 1000, 5000, 5000]]})
+odalar.kaydet_oda({"ad": "Oda A", "dikdortgenler": [[1000, 1000, 5000, 5000]]})
 odalar.sil_oda(a["id"])
 yedekler = sorted((tmp / "yedek").glob("*.json"))
-assert len(yedekler) == 3 and any("Salon" in y.read_text() and a["id"] in y.read_text() for y in yedekler)
-assert [o["ad"] for o in odalar.oku()["odalar"]] == ["Salon"]
+assert len(yedekler) == 3 and any("Oda A" in y.read_text() and a["id"] in y.read_text() for y in yedekler)
+assert [o["ad"] for o in odalar.oku()["odalar"]] == ["Oda A"]
 assert any(o["id"] == a["id"] and o["silindi"] for o in odalar.oku_ham()["odalar"])   # fiziksel silme yok
 for kotu in ({"ad": "", "dikdortgenler": [[0, 0, 1000, 1000]]}, {"ad": "z", "dikdortgenler": []}):
     try: odalar.kaydet_oda(kotu); raise SystemExit("reddedilmeliydi")
@@ -59,7 +59,7 @@ try:
     assert istek("/api/temizle", "POST", {"oda_id": oid, "tekrar": 9})[0] == 400
     assert json.loads(istek("/api/durdur", "POST", {})[1])["gonderildi"] is False
     assert json.loads(istek("/api/istasyon", "POST", {})[1])["gonderildi"] is False
-    s, body = istek("/api/oda", "POST", {"ad": "Mutfak", "dikdortgenler": [[2000, 2000, 4000, 4000]]}); assert s == 200
+    s, body = istek("/api/oda", "POST", {"ad": "Oda B", "dikdortgenler": [[2000, 2000, 4000, 4000]]}); assert s == 200
     assert istek("/api/oda/" + json.loads(body)["id"], "DELETE")[0] == 200
     s, body = istek("/api/durum")   # robota salt-okuma get_status (komut degil)
     print("durum:", s, body[:90])

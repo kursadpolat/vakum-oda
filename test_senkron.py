@@ -24,7 +24,7 @@ assert odalar.birlestir([{"id": "dddddddd", "ad": "D", "dikdortgenler": R, "gunc
 # gecersiz uzak kayitlar atlanir
 assert odalar.dogrula_uzak({"odalar": [{"id": "XYZ", "ad": "x", "dikdortgenler": R}, {"id": "eeeeeeee", "ad": "", "dikdortgenler": R}]}) == []
 # uygula_uzak: yedek + degismezse yazmaz
-odalar.kaydet_oda({"ad": "Salon", "dikdortgenler": R})
+odalar.kaydet_oda({"ad": "Oda A", "dikdortgenler": R})
 n0 = len(list((tmp / "uy").glob("*")))
 odalar.uygula_uzak(odalar.oku_ham()); assert len(list((tmp / "uy").glob("*"))) == n0      # ayni veri -> yazma yok
 odalar.uygula_uzak({"odalar": u}); assert len(list((tmp / "uy").glob("*"))) == n0 + 1     # degisti -> once yedek
@@ -70,20 +70,20 @@ try:
     assert istek("A", "/api/senkron", h={"X-Senkron-Anahtar": "yanlis"})[0] == 403
     assert istek("A", "/api/senkron", "POST", {"odalar": []}, h={"X-Senkron-Anahtar": "yanlis"})[0] == 403
     s, k = istek("B", "/api/kimlik"); assert k["makine"] == "B" and k["esler"][0]["ad"] == "A"
-    s, o = istek("A", "/api/oda", "POST", {"ad": "Mutfak", "dikdortgenler": R}); assert s == 200
-    assert bekle(lambda: adlar("B") == ["Kaynak", "Mutfak"]), "kayit B'ye iletilmedi"
+    s, o = istek("A", "/api/oda", "POST", {"ad": "Oda B", "dikdortgenler": R}); assert s == 200
+    assert bekle(lambda: adlar("B") == ["Kaynak", "Oda B"]), "kayit B'ye iletilmedi"
     assert istek("B", "/api/oda/" + o["id"], "DELETE")[0] == 200
     assert bekle(lambda: adlar("A") == ["Kaynak"]), "silme A'ya iletilmedi"
     ham = json.loads((tmp / "A" / "odalar.json").read_text())["odalar"]
-    assert any(x["id"] == o["id"] and x["silindi"] and x["ad"] == "Mutfak" for x in ham)   # icerik korunur
+    assert any(x["id"] == o["id"] and x["silindi"] and x["ad"] == "Oda B" for x in ham)   # icerik korunur
     # B kapaliyken A'da degisiklik, B acilinca alir
     proc[1].terminate(); proc[1].wait()
-    istek("A", "/api/oda", "POST", {"ad": "Banyo", "dikdortgenler": R})
+    istek("A", "/api/oda", "POST", {"ad": "Oda C", "dikdortgenler": R})
     d = tmp / "B"
     env = dict(os.environ, VAKUM_AYAR=str(d / "ayar.json"), VAKUM_ODALAR=str(d / "odalar.json"),
                VAKUM_YEDEK=str(d / "yedek"), VAKUM_HARITA=str(d / "harita"))
     proc[1] = subprocess.Popen([sys.executable, "sunucu.py", "--kuru"], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    assert bekle(lambda: adlar("B") == ["Banyo", "Kaynak"], 20), "B acilista almadi"
+    assert bekle(lambda: adlar("B") == ["Kaynak", "Oda C"], 20), "B acilista almadi"
     a = sorted(json.dumps(x, sort_keys=True) for x in json.loads((tmp / "A" / "odalar.json").read_text())["odalar"])
     b = sorted(json.dumps(x, sort_keys=True) for x in json.loads((tmp / "B" / "odalar.json").read_text())["odalar"])
     assert a == b, "iki dosya farkli"
