@@ -4,6 +4,7 @@ Cift bildirim olmasin diye mesaji YALNIZ yetkili makine gonderir (yetkili() -> l
 asil lider (pc-1) her zaman, yedek (pc-2) ancak asil lider kapaliyken devraldiginda.
 Iki makine de durumu izler (devralan makine gecmisi bilsin), ama yalniz yetkili olan gonderir.
 Ayar: .gizli/telegram.json {"bot_token": "...", "chat_id": "..."} (yoksa bildirim kapali, sadece gunluge yazar)."""
+import html
 import json
 import threading
 import time
@@ -15,6 +16,7 @@ import robot
 
 KOK = Path(__file__).resolve().parent
 TELEGRAM_DOSYASI = KOK / ".gizli" / "telegram.json"
+UYGULAMA_BASLIGI = "🤖 VAKUM ROBOTU"
 IZLEME_SN = 10
 # temizlik sayilan durumlar (uzaktan kumanda/manuel haric)
 TEMIZLIK = {5, 11, 16, 17, 18}
@@ -36,9 +38,11 @@ def telegram_gonder(metin: str, ayar=None, deneme=3) -> bool:
     if not ayar:
         return False
     url = f"https://api.telegram.org/bot{ayar['bot_token']}/sendMessage"
+    # Aynı bot başka uygulamalarca da kullanılıyor: kaynağı belli olsun diye kalın başlık.
+    govde = f"<b>{UYGULAMA_BASLIGI}</b>\n{html.escape(metin)}"
     for i in range(deneme):
         try:
-            r = requests.post(url, data={"chat_id": ayar["chat_id"], "text": metin}, timeout=15)
+            r = requests.post(url, data={"chat_id": ayar["chat_id"], "text": govde, "parse_mode": "HTML"}, timeout=15)
             if r.status_code == 200 and r.json().get("ok"):
                 return True
             if 400 <= r.status_code < 500 and r.status_code != 429:
